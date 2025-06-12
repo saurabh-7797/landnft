@@ -178,53 +178,53 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
     // OFFICIAL MANAGEMENT
     // ======================
     
- function registerOfficial(
-    string memory name,
-    string memory designation,
-    string memory department,
-    string memory jurisdiction,
-    string memory contactNumber,
-    string memory officialId,
-    string memory ipfsHash,
-    address walletAddress,
-    bytes32 role
-) public onlyRole(DEFAULT_ADMIN_ROLE) {
-    // Requirements checks
-    require(bytes(name).length > 0, "Empty name");
-    require(bytes(designation).length > 0, "Empty designation");
-    require(bytes(officialId).length > 0, "Empty officialId");
-    require(walletAddress != address(0), "Zero address");
-    require(role == PATWARI_ROLE || role == CLERK_ROLE || 
-           role == TEHSILDAR_ROLE || role == REGISTRAR_ROLE, "Invalid role");
-    require(!registeredUsers[walletAddress], "Already registered");
-    
-    // Get new official ID
-    uint256 newOfficialId = _officialIdCounter.current();
-    _officialIdCounter.increment();
-    
-    // Create official record
-    officials[newOfficialId] = Official({
-        id: newOfficialId,
-        name: name,
-        designation: designation,
-        department: department,
-        jurisdiction: jurisdiction,
-        contactNumber: contactNumber,
-        officialId: officialId,
-        ipfsHash: ipfsHash,
-        walletAddress: walletAddress,
-        active: true,
-        registrationDate: block.timestamp,
-        lastActivity: block.timestamp
-    });
-    
-    // Update mappings
-    addressToOfficialId[walletAddress] = newOfficialId;
-    _grantRole(role, walletAddress);
-    registeredUsers[walletAddress] = true;
-    
-    emit OfficialRegistered(newOfficialId, name, designation, walletAddress);
-}
+    function registerOfficial(
+        string memory name,
+        string memory designation,
+        string memory department,
+        string memory jurisdiction,
+        string memory contactNumber,
+        string memory officialId,
+        string memory ipfsHash,
+        address walletAddress,
+        bytes32 role
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        // Requirements checks
+        require(bytes(name).length > 0, "Empty name");
+        require(bytes(designation).length > 0, "Empty designation");
+        require(bytes(officialId).length > 0, "Empty officialId");
+        require(walletAddress != address(0), "Zero address");
+        require(role == PATWARI_ROLE || role == CLERK_ROLE || 
+               role == TEHSILDAR_ROLE || role == REGISTRAR_ROLE, "Invalid role");
+        require(!registeredUsers[walletAddress], "Already registered");
+        
+        // Get new official ID
+        uint256 newOfficialId = _officialIdCounter.current();
+        _officialIdCounter.increment();
+        
+        // Create official record
+        officials[newOfficialId] = Official({
+            id: newOfficialId,
+            name: name,
+            designation: designation,
+            department: department,
+            jurisdiction: jurisdiction,
+            contactNumber: contactNumber,
+            officialId: officialId,
+            ipfsHash: ipfsHash,
+            walletAddress: walletAddress,
+            active: true,
+            registrationDate: block.timestamp,
+            lastActivity: block.timestamp
+        });
+        
+        // Update mappings
+        addressToOfficialId[walletAddress] = newOfficialId;
+        _grantRole(role, walletAddress);
+        registeredUsers[walletAddress] = true;
+        
+        emit OfficialRegistered(newOfficialId, name, designation, walletAddress);
+    }
     
     function updateOfficial(
         uint256 officialId,
@@ -314,7 +314,7 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
             relationToProperty: "",
             witnessedTokens: new uint256[](0),
             witnessedTransfers: new uint256[](0),
-             lastActivity: block.timestamp 
+            lastActivity: block.timestamp 
         });
         
         _grantRole(WITNESS_ROLE, msg.sender);
@@ -340,14 +340,15 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
     // LAND REGISTRATION FLOW
     // ======================
 
-    function createLandDraft(
+  function createLandDraft(
         string memory state,
         string memory district,
         string memory village,
         string memory khasraNumber,
         uint256 area,
         string memory landType,
-        address owner
+        address owner,
+        string memory ipfsHash
     ) public onlyRole(PATWARI_ROLE) {
         require(bytes(state).length > 0, "State cannot be empty");
         require(bytes(district).length > 0, "District cannot be empty");
@@ -358,6 +359,7 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
         require(owner != address(0), "Owner cannot be zero address");
         require(!khasraNumbers[khasraNumber], "Khasra number already exists");
         require(owners[owner].walletAddress == owner, "Owner not registered");
+        _validateIPFSHash(ipfsHash); // Validate the IPFS hash
         
         uint256 draftId = _draftIdCounter.current();
         _draftIdCounter.increment();
@@ -373,7 +375,7 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
             area: area,
             landType: landType,
             currentOwner: owner,
-            ipfsHash: "",
+            ipfsHash: ipfsHash, // Set the IPFS hash here
             ownerApproved: false,
             witnessApproved: false,
             status: DraftStatus.PENDING,
@@ -413,7 +415,7 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
     function verifyDraft(uint256 draftId) public onlyRole(CLERK_ROLE) {
         require(landDrafts[draftId].status == DraftStatus.PENDING, "Draft not in pending status");
         require(landDrafts[draftId].ownerApproved, "Owner has not approved the draft");
-        require(landDrafts[draftId].witnessApproved, "Witness has not approved the draft");
+        // Witness approval is now optional - removed this requirement
         require(bytes(landDrafts[draftId].ipfsHash).length > 0, "Documents not attached");
         
         uint256 officialId = addressToOfficialId[msg.sender];
@@ -479,53 +481,49 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
     // LAND TRANSFER FLOW
     // ======================
 
-   function initiateTransfer(
-    uint256 tokenId,
-    address newOwner,
-    string memory propertyAddress,
-    string memory propertyType,
-    string memory ipfsHash
-) public {
-    // Requirements checks
-    require(ownerOf(tokenId) == msg.sender, "Not the owner");
-    require(newOwner != address(0), "Zero address");
-    require(owners[newOwner].walletAddress == newOwner, "Not registered");
-    _validateIPFSHash(ipfsHash);
-    
-    // Get transfer ID
-    uint256 transferId = _transferIdCounter.current();
-    _transferIdCounter.increment();
-    
-    // Initialize transfer request
-    transferRequests[transferId] = TransferRequest({
-        tokenId: tokenId,
-        currentOwner: msg.sender,
-        newOwner: newOwner,
-        propertyAddress: propertyAddress,
-        propertyType: propertyType,
-        ipfsHash: ipfsHash,
-        sellerWitnessApproved: false,
-        buyerWitnessApproved: false,
-        clerkVerified: false,
-        tehsildarVerified: false,
-        status: TransferStatus.PENDING,
-        initiatedAt: block.timestamp,
-        verifiedBy: 0,
-        approvedBy: 0,
-        rejectedBy: 0,
-        rejectionReason: "",
-        sellerWitnesses: new address[](0),
-        buyerWitnesses: new address[](0)
-    });
-    
-    // Update owner histories
-    owners[msg.sender].transferHistory.push(transferId);
-    owners[newOwner].transferHistory.push(transferId);
-    owners[msg.sender].lastActivity = block.timestamp;
-    owners[newOwner].lastActivity = block.timestamp;
-    
-    emit TransferInitiated(transferId, tokenId, newOwner);
-}
+    function initiateTransfer(
+        uint256 tokenId,
+        address newOwner,
+        string memory propertyAddress,
+        string memory propertyType,
+        string memory ipfsHash
+    ) public {
+        require(ownerOf(tokenId) == msg.sender, "Not the owner");
+        require(newOwner != address(0), "Zero address");
+        require(owners[newOwner].walletAddress == newOwner, "Not registered");
+        _validateIPFSHash(ipfsHash);
+        
+        uint256 transferId = _transferIdCounter.current();
+        _transferIdCounter.increment();
+        
+        transferRequests[transferId] = TransferRequest({
+            tokenId: tokenId,
+            currentOwner: msg.sender,
+            newOwner: newOwner,
+            propertyAddress: propertyAddress,
+            propertyType: propertyType,
+            ipfsHash: ipfsHash,
+            sellerWitnessApproved: false,
+            buyerWitnessApproved: false,
+            clerkVerified: false,
+            tehsildarVerified: false,
+            status: TransferStatus.PENDING,
+            initiatedAt: block.timestamp,
+            verifiedBy: 0,
+            approvedBy: 0,
+            rejectedBy: 0,
+            rejectionReason: "",
+            sellerWitnesses: new address[](0),
+            buyerWitnesses: new address[](0)
+        });
+        
+        owners[msg.sender].transferHistory.push(transferId);
+        owners[newOwner].transferHistory.push(transferId);
+        owners[msg.sender].lastActivity = block.timestamp;
+        owners[newOwner].lastActivity = block.timestamp;
+        
+        emit TransferInitiated(transferId, tokenId, newOwner);
+    }
 
     function addWitness(uint256 tokenId, address witness, bool isBuyerWitness) public {
         require(ownerOf(tokenId) == msg.sender, "Not the owner of this land NFT");
@@ -585,8 +583,9 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
     function verifyTransfer(uint256 transferId) public onlyRole(CLERK_ROLE) {
         TransferRequest storage request = transferRequests[transferId];
         require(request.status == TransferStatus.PENDING, "Transfer not in pending status");
-        require(request.sellerWitnessApproved, "Seller witnesses not approved");
-        require(request.buyerWitnessApproved, "Buyer witnesses not approved");
+        // Witness approvals are now optional - removed these requirements
+        // require(request.sellerWitnessApproved, "Seller witnesses not approved");
+        // require(request.buyerWitnessApproved, "Buyer witnesses not approved");
         require(bytes(request.ipfsHash).length > 0, "Transfer documents missing");
         
         uint256 officialId = addressToOfficialId[msg.sender];
@@ -638,7 +637,6 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
         request.status = TransferStatus.COMPLETED;
         _transfer(request.currentOwner, request.newOwner, request.tokenId);
         
-        // Update owner to tokens mapping
         _removeTokenFromOwner(request.currentOwner, request.tokenId);
         owners[request.newOwner].ownedTokens.push(request.tokenId);
         owners[request.currentOwner].lastActivity = block.timestamp;
@@ -740,7 +738,6 @@ contract LandRegistry is ERC721URIStorage, AccessControl {
         uint256 latestTransferId = 0;
         uint256 latestTimestamp = 0;
         
-        // This is a simplified approach - in production you might want a better mapping
         for (uint256 i = 0; i < _transferIdCounter.current(); i++) {
             if (transferRequests[i].tokenId == tokenId && 
                 transferRequests[i].initiatedAt > latestTimestamp) {
