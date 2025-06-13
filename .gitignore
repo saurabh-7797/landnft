@@ -11,13 +11,4 @@ artifacts
 
 # IDE files
 .vscode
-.idea
-*.swp
-*.swo
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log* 
+.idea 
